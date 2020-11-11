@@ -8,6 +8,9 @@ Created on Thu Jun 13 16:14:29 2019
 import os
 os.chdir("C:/Users/Ursu/Desktop/Bordeaux/Econometrics of big data/ursu/ursu_2019/cours/chapter7/code")
 os.getcwd()
+bonjour
+je teste
+un truc
 
 import pandas as pd
 import numpy as np
