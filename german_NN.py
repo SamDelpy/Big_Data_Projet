@@ -19,6 +19,7 @@ germancredit = pd.read_csv("germancredit.csv",sep=',')
 germancredit.info()
 germancredit.Default.value_counts()
 
+un autre essai ici
 
 X = germancredit[['duration','amount','age']]  
 y = germancredit.iloc[:, 0]
