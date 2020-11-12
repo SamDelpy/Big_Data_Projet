@@ -1,0 +1,214 @@
+###############################################################################
+################ Preparing the Data ###########################################
+###############################################################################
+
+import os
+os.chdir("C:/Users/Sam/Documents/M2 IREF/Econometrics of Big Data/homework3")
+os.getcwd()
+
+import pandas as pd
+pima = pd.read_csv("pima_indians_diabetes.csv",sep=',',header=None)
+
+pima.columns = ['timepreg','plasmglu','diastol','triceps','2h_serum','bodymass','diabpedi','age','classvar']
+
+#on fait le choix de remplacer les valeurs manquantes par les moyennes des colonnes
+
+import numpy as np
+plasmglu = pima.plasmglu
+plasmglu = np.array(plasmglu)
+# Compute the mean of the non-zero elements
+m = np.mean(plasmglu[plasmglu > 0])
+# Assign the mean to the zero elements 
+plasmglu[plasmglu == 0] = m
+
+diastol = pima.diastol
+diastol = np.array(diastol)
+# Compute the mean of the non-zero elements
+n = np.mean(diastol[diastol > 0])
+# Assign the mean to the zero elements 
+diastol[diastol == 0] = n
+
+triceps = pima.triceps
+triceps = np.array(triceps)
+# Compute the mean of the non-zero elements
+p = np.mean(triceps[triceps > 0])
+# Assign the mean to the zero elements 
+triceps[triceps == 0] = p
+
+bodymass = pima.bodymass
+bodymass = np.array(bodymass)
+# Compute the mean of the non-zero elements
+q = np.mean(bodymass[bodymass > 0])
+# Assign the mean to the zero elements 
+bodymass[bodymass == 0] = q
+
+pima['plasmglu']=plasmglu
+pima['diastol']=diastol
+pima['triceps']=triceps
+pima['bodymass']=bodymass
+
+pima['age'].describe()
+#pas de valeurs aberrantes
+
+#séparation de la base de données en 2 -> les variables et la cible
+X = pima.drop(['classvar'],axis='columns')
+y = pima.iloc[:, 8]
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25)
+
+#vérification
+print(np.mean(X_train))
+print(np.mean(X_test))
+print(np.mean(y_train),np.mean(y_test))
+#les répartitions des classes sont plutot bien respectées meme si pour les variables ca pourrait etre mieux
+#pour 2hserum c'est pas terrible parce que base de donnnees n'est pas assez complete pour cette colonne (trop de 0)
+#on va donc faire l'analyse sans cette variable.
+#si on veut garder cette variable il faut que les moyennes de train de test soient a peu pres les memes.
+
+#X = X.drop(['2h_serum'],axis='columns')
+#from sklearn.model_selection import train_test_split
+#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2)
+#vérification
+#print(np.mean(X_train))
+#print(np.mean(X_test))
+#print(np.mean(y_train),np.mean(y_test))
+#maintenant les répartitions des classes sont bien respectées
+
+#finalement c'est peut etre mieux de laisser la variable 2h_serum et de chercher une bonne répartition
+#plutot que de l'enlever au risque de perdre de l'info. + train et test st similaires
+#+ on sera précis
+
+#normalize data
+X_train_n = X_train.apply(lambda x:(x-x.min()) / (x.max()-x.min()))
+X_test_n = X_test.apply(lambda x:(x-x.min()) / (x.max()-x.min()))
+X_train_n.describe()
+
+###############################################################################
+############ SingleLayer Perceptron ###########################################
+###############################################################################
+from keras.models import Sequential
+from keras.layers import Dense
+modelSimple = Sequential()
+
+#architecture -> entrée 8 neurones (nos huit variables), sortie notre cible (classvar) 
+#7 var indep, units = 1 -> une couche cachée pour le moment, fonction d'activation -> sigmoid
+modelSimple.add(Dense(units= 1,input_dim=8,activation="sigmoid"))
+
+# print configuration 
+print(modelSimple.get_config())
+#compilation algorithme d'apprentissage
+modelSimple.compile(loss="binary_crossentropy",optimizer="adam",metrics=["accuracy"])
+#apprentissage
+modelSimple.fit(X_train_n,y_train,epochs=100,batch_size=10)
+
+#Once the learning is finished, we can display the estimated weights:
+print(modelSimple.get_weights())
+
+#Making predictions on new data
+predSimple = modelSimple.predict_classes(X_test_n)
+print(predSimple[:10]) # prédit que des 0 pour les 10 premieres positions
+#confusion matrix
+from sklearn import metrics
+print( metrics.confusion_matrix(y_test,predSimple))
+#succes rate
+print(metrics.accuracy_score(y_test,predSimple))
+
+#L’autre solution consiste à utiliser l’outil dédié de la librairie Keras.
+score = modelSimple.evaluate(X_test,y_test)
+print(score)
+
+###############################################################################
+############ Perceptron multicouche ###########################################
+###############################################################################
+#modélisation 
+#pour rajouter des couches cachées
+from keras.models import Sequential
+from keras.layers import Dense
+modelMc = Sequential()
+#inputdim = 8 couche d'entrée de huit et premiere couche cachée a 4 entrées
+modelMc.add(Dense(units=1,input_dim=8,activation="relu"))
+#on rajoute encore une couche cachée a 4 entrées
+modelMc.add(Dense(units=1,activation="relu"))
+#modelMc.add(Dense(units=300,activation="sigmoid"))
+#on rajoute encore une couche cachée a 1 entrée
+modelMc.add(Dense(units=1,activation="sigmoid"))
+
+
+
+#compiling the model
+modelMc.compile(loss="binary_crossentropy",optimizer="adam",metrics=["accuracy"])
+#apprentissage
+modelMc.fit(X_train,y_train,validation_split=0.2,epochs=100,batch_size=10)
+#poids synaptiques
+print(modelMc.get_weights())
+
+#score
+score = modelMc.evaluate(X_test,y_test)
+print(score)
+
+predMc = modelMc.predict_classes(X_test)
+from sklearn import metrics
+print( metrics.confusion_matrix(y_test,predMc))
+
+#taux de succès
+print(metrics.accuracy_score(y_test,predMc))
+
+##################################################################
+######################## random forest ###########################
+##################################################################
+
+# Import the model we are using
+from sklearn.ensemble import RandomForestClassifier
+
+# Instantiate model 
+#apres avoir sélectionner le nombre d'estimateurs grace au taux d'erreur (voir plus bas)
+#on prend n-estimators = 89
+pima_rf = RandomForestClassifier(n_estimators= 89, max_features = 8, oob_score=True)
+
+# Train the model on training data
+pima_rf.fit(X_train, y_train)
+
+#score
+print(pima_rf.oob_score_)
+print('Score: ', pima_rf.score(X_test, y_test))
+
+predictions = pima_rf.predict(X_test)
+pred_test = pima_rf.predict_proba(X_test)
+pd.DataFrame(predictions).head()
+
+from sklearn import metrics
+# Model Accuracy, how often is the classifier correct?
+print("Accuracy:",metrics.accuracy_score(y_test, predictions))
+#error = 1-np.mean(predictions != y_test)
+# Visualise classical Confusion Matrix
+from sklearn.metrics import confusion_matrix
+conf_mat = confusion_matrix(y_test, predictions)
+print(conf_mat)
+
+
+########### selecting n_estimators based on Out-of-Bag Error Rate #############
+error_rate = []
+min_estimators = 15
+max_estimators = 200
+
+n_estimators = 100
+rf = RandomForestClassifier(warm_start=True, oob_score=True)
+
+#attention ca prend bcp de temps -> il calcule tout
+for i in range(min_estimators, max_estimators + 1):
+    rf.set_params(n_estimators=i)
+    rf.fit(X_train, y_train)
+    #print (i, rf.oob_score_)
+    oob_error = 1-rf.oob_score_
+    error_rate.append(oob_error)
+
+error_rate.index(min(error_rate))+15
+
+# Generate the "OOB error rate" vs. "n_estimators" plot.
+x1 = np.linspace(15, 200, 186, endpoint=True)
+import matplotlib.pyplot as plt
+plt.plot(x1, error_rate)
+plt.xlabel('n_estimators')
+plt.ylabel('OOB Error Rate')
+plt.title('OOB Error Rate Across various Forest sizes \n(From 15 to 300 trees)')
